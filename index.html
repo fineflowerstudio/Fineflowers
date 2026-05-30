@@ -253,10 +253,12 @@ var HD={'Content-Type':'application/json','apikey':AKEY,'Authorization':'Bearer 
 
 // ── SUPABASE API ───────────────────────────────────────────
 async function api(table,method,body,q){
+  var isGet=!method||method==='GET';
   var url=SUPA+'/rest/v1/'+table+(q||'');
-  var h={'Content-Type':'application/json','apikey':AKEY,'Authorization':'Bearer '+AKEY};
+  if(isGet)url+=(url.indexOf('?')>=0?'&':'?')+'_cb='+Date.now();
+  var h={'Content-Type':'application/json','apikey':AKEY,'Authorization':'Bearer '+AKEY,'Cache-Control':'no-cache'};
   if(method==='POST')h['Prefer']='return=representation';
-  var r=await fetch(url,{method:method||'GET',headers:h,body:body?JSON.stringify(body):null});
+  var r=await fetch(url,{method:method||'GET',headers:h,body:body?JSON.stringify(body):null,cache:'no-store'});
   if(!r.ok)throw new Error(await r.text());
   if(method==='DELETE'||r.status===204)return true;
   var t=await r.text();return t?JSON.parse(t):[];
@@ -386,8 +388,11 @@ async function loadSettings(){
 }
 async function saveSetting(id,value){
   S[id]=value;
-  try{await api('settings','PATCH',{value:value},'?id=eq.'+id);}
-  catch(e){try{await P('settings',{id:id,value:value});}catch(e2){console.warn('Setting save error',e2);}}
+  try{
+    var h={'Content-Type':'application/json','apikey':AKEY,'Authorization':'Bearer '+AKEY,'Prefer':'resolution=merge-duplicates'};
+    var r=await fetch(SUPA+'/rest/v1/settings',{method:'POST',headers:h,body:JSON.stringify({id:id,value:value}),cache:'no-store'});
+    if(!r.ok)throw new Error(await r.text());
+  }catch(e){console.warn('Setting save error',e);}
 }
 
 // ── BADGE HELPERS ─────────────────────────────────────────
